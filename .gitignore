@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.tests/
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crx
+*.zip
+*config-20*.json
+*backup*.json

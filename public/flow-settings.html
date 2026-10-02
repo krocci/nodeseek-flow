@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>NodeSeek Flow · 设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <a class="brand" href="#reading"
+          ><span class="logo">N</span><span>NodeSeek<br /><strong>Flow</strong></span></a
+        >
+        <p class="tagline">接着读，不必重新开始。</p>
+        <nav>
+          <a href="#reading">连续阅读</a><a href="#appearance">外观与布局</a
+          ><a href="#rules">屏蔽与标记</a><a href="#phrases">快捷短语</a><a href="#sync">设备同步</a
+          ><a href="#data">备份与缓存</a>
+        </nav>
+        <small>预览版 <span id="version"></span><br />独立非官方扩展</small>
+      </aside>
+      <main>
+        <header class="hero">
+          <span class="eyebrow">YOUR READING SPACE</span>
+          <h1>让阅读连起来。</h1>
+          <p>缓存先呈现，更新在后台。电脑与手机，都从上次的位置继续。</p>
+          <div id="save-status" class="save-status" role="status">正在读取设置…</div>
+          <button id="retry-save" type="button" class="button" hidden>重试未保存的修改</button>
+        </header>
+        <section id="reading">
+          <div class="section-head">
+            <span>01</span>
+            <h2>连续阅读</h2>
+          </div>
+          <p class="muted">
+            首页和帖子评论分别缓存。每个浏览会话最多恢复 40 页；当前阅读顺序不会被后台更新打乱。
+          </p>
+          <div id="reading-settings"></div>
+          <label class="setting"
+            ><span>自动签到（仅本机，固定奖励）</span><input id="auto-attendance" type="checkbox"
+          /></label>
+          <p class="muted">
+            自动签到默认关闭；开启后在已登录、可见的论坛页面检查，按 UTC+8
+            每天领取固定奖励。失败后暂停 30 分钟，关闭浏览器时不会签到。
+          </p>
+          <p id="attendance-status" role="status">尚无自动签到记录</p>
+        </section>
+        <section id="appearance">
+          <div class="section-head">
+            <span>02</span>
+            <h2>外观与布局</h2>
+          </div>
+          <p class="muted">
+            主题可跟随系统；选择“仅本机”后，另一台设备不会覆盖此项偏好。页面功能开关变化后请刷新论坛。
+          </p>
+          <div id="appearance-settings"></div>
+        </section>
+        <section id="rules">
+          <div class="section-head">
+            <span>03</span>
+            <h2>屏蔽与标记</h2>
+          </div>
+          <div id="rule-groups"></div>
+          <details id="rule-editor">
+            <summary>＋ 添加单条规则 / 编辑未分组规则</summary>
+            <form id="rule-form" class="form-grid">
+              <label
+                >匹配对象<select name="ruleTarget">
+                  <option value="keyword">关键词</option>
+                  <option value="user">用户 ID / 名称</option>
+                </select></label
+              ><label
+                >处理方式<select name="ruleAction">
+                  <option value="block">屏蔽（默认隐藏）</option>
+                  <option value="mark">标记</option>
+                </select></label
+              ><label class="wide"
+                >关键词或用户 ID<input
+                  name="ruleText"
+                  maxlength="200"
+                  required
+                  placeholder="例如：广告，或用户数字 ID" /></label
+              ><label
+                >范围<select name="ruleScope">
+                  <option value="title">仅标题</option>
+                  <option value="all">标题与正文</option>
+                  <option value="body">主帖与评论正文</option>
+                  <option value="custom">自定义区域（兼容旧配置）</option>
+                </select></label
+              ><label>标记颜色<input name="ruleColor" type="color" value="#397d9c" /></label
+              ><label class="wide"
+                >标签 / 说明<input name="ruleLabel" maxlength="80" placeholder="可留空"
+              /></label>
+              <fieldset id="rule-areas" class="wide" hidden>
+                <legend>关键词匹配区域</legend>
+                <label><input type="checkbox" name="area-title" />标题</label>
+                <label><input type="checkbox" name="area-post" />主帖正文</label>
+                <label><input type="checkbox" name="area-comment" />评论正文</label>
+              </fieldset>
+              <div class="actions wide">
+                <button class="button primary">保存规则</button
+                ><button id="cancel-rule" type="button" class="button">取消编辑</button>
+              </div>
+            </form>
+          </details>
+        </section>
+        <section id="phrases">
+          <div class="section-head">
+            <span>04</span>
+            <h2>快捷短语</h2>
+          </div>
+          <div id="phrase-list"></div>
+          <form id="phrase-form">
+            <label
+              >短语内容<textarea
+                name="phraseText"
+                rows="4"
+                maxlength="10000"
+                required
+                placeholder="保存常用表达，支持 Markdown 和换行。"
+              ></textarea>
+            </label>
+            <div class="actions">
+              <button class="button primary">保存短语</button
+              ><button id="cancel-phrase" type="button" class="button">取消编辑</button>
+            </div>
+          </form>
+        </section>
+        <section id="sync">
+          <div class="section-head">
+            <span>05</span>
+            <h2>电脑与手机，同一套习惯</h2>
+          </div>
+          <p class="muted">
+            使用已存在的 WebDAV
+            专用目录。规则、短语和偏好自动合并；正文与图片缓存留在本机。首版同步文件为明文，请使用私有
+            HTTPS 目录。
+          </p>
+          <form id="dav-form" class="form-grid">
+            <label class="wide"
+              >WebDAV 目录<input
+                name="davURL"
+                type="url"
+                required
+                placeholder="https://你的服务/dav/nodeseek-flow/" /></label
+            ><label>用户名<input name="davUser" required autocomplete="off" /></label
+            ><label>应用密码<input name="davPassword" type="password" autocomplete="off" /></label
+            ><label class="wide check"
+              ><input
+                name="davProgress"
+                type="checkbox"
+              />同时同步已读与阅读楼层（两端都需开启）</label
+            >
+            <label class="wide check"
+              ><input name="davOneDrive" type="checkbox" />兼容 OneDrive 下载跳转（AList 挂载
+              OneDrive 时开启）</label
+            >
+            <p class="muted wide">
+              开启后保存连接会申请 Microsoft 下载域名权限，仅下载允许跳转，跨域不传递 WebDAV
+              密码。AList 的受限同步账户通常直接使用 /dav/，不用重复填写账户根路径。
+            </p>
+            <div class="actions wide">
+              <button type="button" id="dav-save" class="button">保存连接并授权主机</button
+              ><button type="button" id="dav-preview" class="button primary">预览远端合并</button>
+            </div>
+          </form>
+          <div id="dav-confirm" class="callout"></div>
+          <p id="dav-status" role="status"></p>
+          <div class="actions">
+            <button id="dav-sync" class="button">立即同步</button
+            ><button id="dav-disable" class="button">暂停同步</button>
+          </div>
+          <p class="muted">
+            手机浏览器关闭或被系统挂起时不保证后台执行；恢复使用后会继续同步。冲突版本不会静默丢弃。
+          </p>
+          <h3>需要你选择的版本</h3>
+          <div id="conflict-list"></div>
+        </section>
+        <section id="data">
+          <div class="section-head">
+            <span>06</span>
+            <h2>数据由你掌握</h2>
+          </div>
+          <p class="muted">
+            备份包含设置、规则、短语和阅读记录，不含密码。支持兼容导入旧版配置；导入前显示预览。
+          </p>
+          <div class="actions">
+            <button id="export" class="button primary">导出配置备份</button
+            ><label class="button"
+              >导入并合并<input id="import" type="file" accept=".json,application/json" hidden
+            /></label>
+          </div>
+          <button id="restore-recovery" class="button">恢复导入前配置</button>
+          <p id="cache-info" class="muted"></p>
+          <button id="clear-cache" class="button">仅清除本机内容缓存</button>
+          <p class="muted">设备标识：<span id="device-id"></span></p>
+        </section>
+        <footer>NodeSeek Flow · v<span id="footer-version"></span> · 本地优先，按需同步</footer>
+      </main>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>

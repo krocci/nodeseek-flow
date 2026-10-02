@@ -1,0 +1,29 @@
+{
+  "name": "nodeseek-flow",
+  "version": "0.1.18",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "preview": "node scripts/preview.mjs"
+  },
+  "description": "NodeSeek 连续阅读与跨设备配置助手",
+  "devDependencies": {
+    "@types/chrome": "0.3.4",
+    "esbuild": "0.28.2",
+    "fake-indexeddb": "6.2.5",
+    "happy-dom": "20.14.5",
+    "prettier": "3.9.9",
+    "typescript": "7.0.2"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krocci/nodeseek-flow.git"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

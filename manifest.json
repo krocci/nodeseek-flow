@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "NodeSeek Flow",
+  "version": "0.1.18",
+  "description": "首页与评论连续阅读、缓存恢复、主题、热榜和 WebDAV 配置同步。",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.nodeseek.com/*",
+    "https://nodeseek.com/*",
+    "https://api.bimg.eu.org/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "flow-settings.html",
+  "action": {
+    "default_title": "NodeSeek Flow 设置"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.nodeseek.com/*",
+        "https://nodeseek.com/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.nodeseek.com/*",
+        "https://nodeseek.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https:"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoX8soqso8VpmAjvuEBPKzX4bT9fCkXwG84kqhD1pLWTqkL0igfrcODM39hX7qY+i13FY5F5yGgZ4CiLUW5sOglHqbNcaT7o7hBRQCgCtBU1hb0YunLwed8Qhu2Hv2ngE+nmLaxcl9xsgPUwuQH2taA2/7YZ5H89nNm2nfc61kEp1n6vkmh8G3aotYCEaZV7W32jDr1MVd0gfrzGv807Mvl0Dl+i/bA1d5J7MQPcThH/XSO9UxKP3wGhELETshERG9aK5U+WpZZ/R4AOWrQ+weAFqQbM2HNxO+VJcOQ/kLrZZJ9m6ysulLG5XjMWHtAFltOjeMydr9fWJSCw92k+AKwIDAQAB"
+}
