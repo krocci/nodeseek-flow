@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NodeSeek Flow",
-  "version": "0.1.18",
+  "version": "0.1.20",
   "description": "首页与评论连续阅读、缓存恢复、主题、热榜和 WebDAV 配置同步。",
   "permissions": [
     "storage",

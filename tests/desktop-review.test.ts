@@ -80,7 +80,7 @@ test('desktop renderer3 keeps article/text/media and strips active markup throug
   const hostile = '<section><article class="post-content" onclick="attack()"><x-safe><p>正文<b>粗体</b></p></x-safe><img src="/ok.png" onerror="attack()"><a href="javascript:attack()">链接</a><script>attack()</script><iframe src="/bad"></iframe><template>模板污染</template><svg><foreignObject><p>外部污染</p></foreignObject><use href="https://evil.test/a.svg#x"></use></svg></article></section>';
   const twice = safeShell(safeShell(hostile, w.location.href), w.location.href);
   const d = w.document.createElement('div'); d.innerHTML = twice;
-  assert.equal(RENDERER, 3);
+  assert.equal(RENDERER, 4);
   assert.match(d.querySelector('article')!.textContent, /正文粗体/);
   assert.equal(d.querySelector('img')!.src, 'https://www.nodeseek.com/ok.png');
   assert.equal(d.querySelectorAll('script,iframe,template,foreignObject,[onclick],[onerror]').length, 0);
@@ -94,7 +94,7 @@ test('desktop v2 cache upgrade repairs missing body without mutating cached inpu
   p.renderer = 2;
   for (const i of p.items) i.shell = i.shell!.replace(/<article\b[^>]*>[\s\S]*?<\/article>/g, '');
   const old = JSON.stringify(p); const upgraded = upgradePage(p)!;
-  assert.equal(upgraded.renderer, 3); assert.equal(JSON.stringify(p), old);
+  assert.equal(upgraded.renderer, RENDERER); assert.equal(JSON.stringify(p), old);
   for (const i of upgraded.items) {
     const dom = renderItem(i);
     assert.ok(dom.querySelector('article.post-content'));

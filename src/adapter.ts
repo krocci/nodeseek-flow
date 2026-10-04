@@ -1,4 +1,5 @@
 import { canonicalPage, routeKey, pageNumber, isForumURL } from './core';
+import { normalizeTimes, absoluteTime, formatTime } from './timestamps';
 export type Item = {
   id: string;
   floor: number;
@@ -10,6 +11,7 @@ export type Item = {
   summary: string;
   replies: number;
   time: string;
+  capturedAt?: number;
   kind: 'list' | 'post';
   shell?: string;
   scopes?: string[];
@@ -27,7 +29,7 @@ export type Page = {
   at: number;
 };
 const text = (e: Element | null) => e?.textContent?.trim() || '';
-export const RENDERER = 3;
+export const RENDERER = 4;
 
 // Keep the site's layout, but never cache handlers, scripts or extension decorations.
 export function safeShell(html: string, base: string): string {
@@ -46,7 +48,7 @@ export function safeShell(html: string, base: string): string {
     }
     for (const a of [...e.attributes]) {
       if (
-        ['class', 'title', 'alt', 'datetime', 'width', 'height', 'viewBox'].includes(a.name) ||
+        ['class', 'title', 'alt', 'datetime', 'data-nf-time-estimated', 'width', 'height', 'viewBox'].includes(a.name) ||
         /^data-v-[a-f0-9]+$/.test(a.name)
       )
         continue;
@@ -178,6 +180,7 @@ export function sanitize(html: string, base: string, images = true): string {
   return target.innerHTML;
 }
 export function parsePage(root: Document, url: string, mode = currentMode(root, url)): Page {
+  const capturedAt = Date.now();
   const kind = /^\/post-\d+-\d+$/.test(new URL(url).pathname) ? 'post' : 'list';
   const container = itemsRoot(kind, root);
   if (!container) throw Error('页面结构不匹配，可能需要登录或完成站点验证');
@@ -210,6 +213,7 @@ export function parsePage(root: Document, url: string, mode = currentMode(root, 
         ? safeURL(postHref, url)
         : new URL(url).origin + new URL(url).pathname + '#' + floor;
     const body = e.querySelector('article.post-content,.post-content');
+    normalizeTimes(e, capturedAt);
     items.push({
       id,
       floor,
@@ -221,6 +225,7 @@ export function parsePage(root: Document, url: string, mode = currentMode(root, 
       summary: text(body).slice(0, 600),
       replies: Number(text(e.querySelector('.info-comments-count')).replace(/[^\d]/g, '')) || 0,
       time: e.querySelector('time')?.getAttribute('datetime') || text(e.querySelector('time')),
+      capturedAt,
       kind,
       shell: safeShell(e.innerHTML, url),
       scopes: [...e.attributes].map((a) => a.name).filter((a) => /^data-v-[a-f0-9]+$/.test(a)),
@@ -250,7 +255,7 @@ export function parsePage(root: Document, url: string, mode = currentMode(root, 
     items: items.filter((i) => kind === 'list' || i.floor !== 0),
     main: kind === 'post' ? items.find((i) => i.floor === 0) : undefined,
     next,
-    at: Date.now(),
+    at: capturedAt,
   };
 }
 export function identify(e: Element, kind: 'list' | 'post'): string {
@@ -264,11 +269,16 @@ export function identify(e: Element, kind: 'list' | 'post'): string {
 export function upgradePage(page: Page): Page | null {
   if (page.renderer === RENDERER) return page;
   // v2 kept a complete, separately sanitized body even when its shell lost ARTICLE.
-  if (page.renderer === 2 && page.items.every((i) => !!i.shell)) {
+  if ([2, 3].includes(page.renderer || 0) && page.items.every((i) => !!i.shell)) {
+    const upgrade = (i: Item) => {
+      const item = { ...i, capturedAt: i.capturedAt || page.at };
+      return { ...item, shell: repairShell(item) };
+    };
     return {
       ...page,
       renderer: RENDERER,
-      items: page.items.map((i) => ({ ...i, shell: repairShell(i) })),
+      items: page.items.map(upgrade),
+      main: page.main ? upgrade(page.main) : undefined,
     };
   }
   return null;
@@ -276,6 +286,7 @@ export function upgradePage(page: Page): Page | null {
 function repairShell(item: Item): string {
   const wrapper = document.createElement('div');
   wrapper.innerHTML = safeShell(item.shell || '', item.url);
+  normalizeTimes(wrapper, item.capturedAt);
   if (item.kind === 'post' && !wrapper.querySelector('.post-content')) {
     const body = element('article', 'post-content');
     body.innerHTML = sanitize(item.body, item.url);
@@ -340,7 +351,7 @@ export function renderItem(item: Item): HTMLElement {
   authorSlot.append(author);
   if (authorSlot !== authorInfo) authorInfo.append(authorSlot);
   authorInfo.append(
-    element('span', 'nf-muted', item.time ? new Date(item.time).toLocaleString() : ''),
+    element('span', 'nf-muted', absoluteTime(item.time) !== null ? formatTime(absoluteTime(item.time)!) : '时间未知'),
   );
   if (item.kind === 'list')
     authorInfo.append(element('span', 'info-comments-count', String(item.replies) + ' 回复'));

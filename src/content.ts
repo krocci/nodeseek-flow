@@ -32,6 +32,7 @@ import { installAttendance } from './attendance-content';
 import { effectiveRules } from './rule-groups';
 import { quickRules } from './quick-rules';
 import { planRefresh, type UpdateBoundary } from './refresh';
+import { normalizeTimes } from './timestamps';
 type Snapshot = {
   attendanceEnabled?: boolean;
   settings: Settings;
@@ -482,7 +483,7 @@ class Feed {
   lastCheck = 0;
   status = element('span', 'nf-muted');
   updateButton = button('检查更新', () =>
-    this.pendingFresh ? this.applyFresh(this.pendingFresh) : this.check(true),
+    this.pendingFresh ? this.refreshNow() : this.check(true),
   );
   restoreCleanup: (() => void) | null = null;
   snapshotId: string = uuid();
@@ -604,10 +605,13 @@ class Feed {
       const el = this.root.querySelector('[id="' + CSS.escape(floor) + '"]');
       el?.scrollIntoView();
     }
-    if (session)
-      setTimeout(() => {
-        if (!this.disposed) this.check(false);
-      }, 3000);
+    // Navigation already fetched this document. Compare it with the restored
+    // snapshot instead of fetching the same URL again three seconds later.
+    this.lastCheck = Date.now();
+    if (didRestore && planRefresh(this.pages, [this.page]).changed) {
+      this.pendingFresh = [this.page];
+      this.updateButton.textContent = '发现更新 · 点击查看最新';
+    }
     this.save();
     await this.persist();
     refreshNavigation();
@@ -618,7 +622,23 @@ class Feed {
   renderRestore() {
     this.index();
     if (this.page.kind === 'list') {
-      this.root.replaceChildren(...uniqueItems(this.pages).map(renderItem));
+      const live = new Map([...this.root.children].map((e) => [identify(e, 'list'), e]));
+      const current = new Map(this.page.items.map((i) => [i.id, i]));
+      const nodes = uniqueItems(this.pages).map((item) => {
+        const fresh = current.get(item.id);
+        const node = live.get(item.id);
+        return node && fresh?.title === item.title && fresh.replies === item.replies
+          ? node : renderItem(item);
+      });
+      // Keep matching native rows and their images/components; only insert or
+      // move rows needed for the saved order, instead of rebuilding the list.
+      let cursor = this.root.firstElementChild;
+      for (const node of nodes) {
+        if (node !== cursor) this.root.insertBefore(node, cursor);
+        cursor = node.nextElementSibling;
+      }
+      const retained = new Set(nodes);
+      for (const node of [...this.root.children]) if (!retained.has(node)) node.remove();
     } else {
       const live = new Set([...this.root.children].map((e) => identify(e, 'post')));
       for (const item of uniqueItems(this.pages))
@@ -845,7 +865,8 @@ class Feed {
     refreshNavigation();
   }
   async refreshNow() {
-    if (this.pendingFresh) await this.applyFresh(this.pendingFresh);
+    if (this.pendingFresh && this.page.kind === 'list' && Date.now() - this.pendingFresh[0].at < 120000)
+      await this.applyFresh(this.pendingFresh);
     else await this.check(true, true);
   }
   renderBoundary() {
@@ -1327,7 +1348,9 @@ async function startRoute() {
   document.documentElement.classList.remove('nf-show-blocked');
   const nextAccount = currentAccount();
   const old = account;
-  const changedAccount = old && old !== nextAccount;
+  // The user card is mounted asynchronously; initial guest -> user hydration
+  // is not a logout/account switch and must not cause another navigation.
+  const changedAccount = old && old !== 'guest' && old !== nextAccount;
   account = nextAccount;
   routeController.abort();
   routeController = new AbortController();
@@ -1485,6 +1508,7 @@ async function init() {
       activeURL = location.href;
       startRoute().catch((e) => toast(e.message));
     } else {
+      if (config.settings.enabled) normalizeTimes(document, feed?.page.at);
       applyLayout();
       directLinks();
       notificationPreviews();

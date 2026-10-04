@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 await import('./build.mjs');
 await build({
   entryPoints: [
+    resolve('tests/dav-incremental.test.ts'),
     resolve('tests/responsive-blocking.test.ts'),
     resolve('tests/attendance.test.ts'),
     resolve('tests/dav-attendance-integration.test.ts'),
@@ -25,6 +26,7 @@ const r = spawnSync(
   process.execPath,
   [
     '--test',
+    '.tests/dav-incremental.test.mjs',
     '.tests/responsive-blocking.test.mjs',
     '.tests/attendance.test.mjs',
     '.tests/dav-attendance-integration.test.mjs',

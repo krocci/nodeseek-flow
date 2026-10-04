@@ -684,6 +684,15 @@ async function boot() {
       davStatus('已暂停自动同步');
     }),
   );
+  $('dav-compact').addEventListener('click', () =>
+    davAction(async () => {
+      if (davDirty) throw Error('请先保存修改后的连接并重新预览。');
+      if (!confirm('将远端历史文件合并成完整快照，回读验证后把旧文件移入同目录下的 flow-archive 归档。保留删除记录和多设备合并信息，不永久删除文件。是否继续？')) return;
+      const r = await rpc('davCompact');
+      $('dav-confirm').replaceChildren();
+      davStatus('历史文件已压缩：归档 ' + r.archived + ' 个，活动文件 ' + r.remaining + ' 个。原文件保留在远端归档目录。');
+    }),
+  );
   window.addEventListener('beforeunload', (e) => {
     if (formDirty) {
       e.preventDefault();

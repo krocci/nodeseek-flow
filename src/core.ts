@@ -1,4 +1,4 @@
-export const VERSION = '0.1.18';
+export const VERSION = '0.1.20';
 export const PROFILE_FIELDS: Record<string, string> = {
   member_id: 'ID',
   member_name: '用户',

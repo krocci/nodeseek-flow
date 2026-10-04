@@ -850,7 +850,7 @@ html.nf-list-view .post-list:not(.topic-carousel-panel) > .post-list-item > a:ha
 html.nf-list-view .post-list:not(.topic-carousel-panel) > .post-list-item > a img.avatar-normal { width: 44px !important; height: 44px !important; border-radius: var(--nf-radius); object-fit: cover; }
 html.nf-list-view .post-list:not(.topic-carousel-panel) .post-list-content {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) 52px 32px 60px;
+  grid-template-columns: minmax(0, 1fr) 52px 32px minmax(84px, max-content);
   grid-template-rows: auto auto;
   column-gap: 6px;
   row-gap: 4px;
@@ -871,7 +871,11 @@ html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > .info-comme
 html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > .post-category { grid-column: 4; grid-row: 1; justify-self: end; font-size: 10px; padding: 0 5px !important; border-radius: 4px; line-height: 18px; }
 html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > .info-last-commenter { grid-column: 2 / 4; grid-row: 2; display: block; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html.nf-list-view .post-list:not(.topic-carousel-panel) .info-last-commenter > svg { display: none; }
-html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > :is(.info-last-comment-time,time,.nf-muted) { grid-column: 4; grid-row: 2; text-align: right; color: var(--nf-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > :is(.info-last-comment-time,time,.nf-muted) { grid-column: 4; grid-row: 2; text-align: right; color: var(--nf-muted); white-space: normal; overflow: visible; font-variant-numeric: tabular-nums; }
+.nf-absolute-time { display: inline-block; max-width: 100%; line-height: 1.4; font-variant-numeric: tabular-nums; white-space: normal !important; overflow-wrap: anywhere; vertical-align: middle; }
+.nf-absolute-time.nf-time-stacked { white-space: pre-line !important; line-height: 1.3 !important; }
+html.nf-post-view .content-item .nsk-content-meta-info { min-width: 0; box-sizing: border-box; }
+html.nf-post-view .content-item .nsk-content-meta-info > :not(.avatar-wrapper):not(.floor-link-wrapper) { min-width: 0; max-width: 100%; }
 html.nf-list-view .post-list:not(.topic-carousel-panel) .nf-profile { display: inline; margin-left: 5px; font-size: 11px !important; line-height: 17px; }
 html.nf-list-view .post-list:not(.topic-carousel-panel) .nf-profile[data-size='small'] { font-size: 10px !important; }
 html.nf-list-view .post-list:not(.topic-carousel-panel) .nf-profile[data-size='large'] { font-size: 12px !important; }
@@ -892,6 +896,11 @@ html.nf-list-view .post-list:not(.topic-carousel-panel) .nf-rule-label { display
   html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > :is(.info-last-comment-time,time,.nf-muted) { grid-column: 4; grid-row: 3; }
   html.nf-list-view .post-list:not(.topic-carousel-panel) .nf-profile { display: inline; }
   html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > .info-author { padding-right: 0; }
+}
+
+@container (max-width: 420px) {
+  html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > .info-last-commenter { grid-column: 3 / 5; }
+  html.nf-list-view .post-list:not(.topic-carousel-panel) .post-info > :is(.info-last-comment-time,time,.nf-muted) { grid-column: 3 / -1; grid-row: 4; justify-self: end; }
 }
 
 /* Hidden sidebar content stays out of the feed; Flow still opens the ranking. */

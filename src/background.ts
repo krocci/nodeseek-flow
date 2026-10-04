@@ -15,7 +15,15 @@ import {
   type Collection,
 } from './core';
 import { getRow, setRow, rows, removeRows, prune } from './db';
-import { davBase, syncDav, ONE_DRIVE_ORIGINS, type DavConfig } from './dav';
+import {
+  davBase,
+  syncDav,
+  compactDav,
+  emptyDavCache,
+  ONE_DRIVE_ORIGINS,
+  type DavConfig,
+  type DavCache,
+} from './dav';
 import { attendanceDay, type AttendanceState } from './attendance';
 type Stored = {
   state?: State;
@@ -116,6 +124,31 @@ async function scheduleSync() {
   if (dav?.enabled) await chrome.alarms.create('flow-sync-soon', { delayInMinutes: 0.5 });
 }
 let syncing: Promise<unknown> | null = null;
+let davQueue: Promise<unknown> = Promise.resolve();
+let davBusy = 0;
+function withDavCache<T>(dav: DavConfig, fn: (cache: DavCache) => Promise<T>): Promise<T> {
+  davBusy++;
+  const task = davQueue
+    .then(async () => {
+      const key = 'dav-files:' + JSON.stringify([davBase(dav.url).href, dav.username]);
+      const stored = await getRow(key).catch(() => undefined);
+      const cache: DavCache =
+        stored?.value?.version === 1 && stored.value.files && typeof stored.value.files === 'object'
+          ? stored.value
+          : emptyDavCache();
+      const result = await fn(cache);
+      // An optional cache failure must not turn a verified upload into a retry.
+      await setRow(key, 'dav-files', 'dav', cache).catch(() =>
+        console.warn('NodeSeek Flow: DAV cache save failed'),
+      );
+      return result;
+    })
+    .finally(() => {
+      davBusy--;
+    });
+  davQueue = task.catch(() => {});
+  return task;
+}
 async function requireDavPermissions(dav: DavConfig) {
   const origins = [
     davBase(dav.url).origin + '/*',
@@ -138,7 +171,7 @@ async function syncNow(force = false) {
     });
     try {
       const before = await state();
-      const r = await syncDav(dav, before.ops);
+      const r = await withDavCache(dav, (cache) => syncDav(dav, before.ops, fetch, cache));
       await serial(async () => {
         const current = await state();
         await chrome.storage.local.set({
@@ -175,6 +208,7 @@ const privateOnly = new Set([
   'davSave',
   'davInfo',
   'davPreview',
+  'davCompact',
   'davConfirm',
   'davDisable',
   'cacheClear',
@@ -505,7 +539,7 @@ async function handle(m: any, sender: chrome.runtime.MessageSender) {
         return snapshot();
       });
     case 'davSave': {
-      if (syncing) throw Error('同步正在进行，请稍后保存');
+      if (syncing || davBusy) throw Error('同步或预览正在进行，请稍后保存');
       const base = davBase(p.url);
       if (!(await chrome.permissions.contains({ origins: [base.origin + '/*'] })))
         throw Error('请先授权该 WebDAV 主机');
@@ -539,7 +573,7 @@ async function handle(m: any, sender: chrome.runtime.MessageSender) {
       return true;
     }
     case 'davDisable':
-      if (syncing) throw Error('当前同步正在结束，请稍后暂停');
+      if (syncing || davBusy) throw Error('当前同步或预览正在结束，请稍后暂停');
       {
         const { dav } = await chrome.storage.local.get<Stored>('dav');
         if (dav) await chrome.storage.local.set({ dav: { ...dav, enabled: false } });
@@ -566,7 +600,7 @@ async function handle(m: any, sender: chrome.runtime.MessageSender) {
       const { dav } = await chrome.storage.local.get<Stored>('dav');
       if (!dav) throw Error('先保存连接');
       await requireDavPermissions(dav);
-      const r = await syncDav(dav as DavConfig, []);
+      const r = await withDavCache(dav, (cache) => syncDav(dav, [], fetch, cache));
       const token = uuid();
       await chrome.storage.local.set({
         davPending: { token, url: dav.url, at: Date.now(), ops: r.ops },
@@ -607,6 +641,12 @@ async function handle(m: any, sender: chrome.runtime.MessageSender) {
         await scheduleSync();
         return true;
       });
+    case 'davCompact': {
+      const { dav } = await chrome.storage.local.get<Stored>('dav');
+      if (!dav?.enabled) throw Error('请先预览并启用 WebDAV');
+      await requireDavPermissions(dav);
+      return withDavCache(dav, (cache) => compactDav(dav, fetch, cache));
+    }
     case 'sync':
       return syncNow(internal);
     default:

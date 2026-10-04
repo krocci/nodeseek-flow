@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Window } from 'happy-dom';
 import { DEFAULTS, canonicalPage, routeKey } from '../src/core';
-import { type Page, type Item, parsePage, uniqueItems, RENDERER } from '../src/adapter';
+import { type Page, type Item, parsePage, uniqueItems, RENDERER, upgradePage, renderItem } from '../src/adapter';
+import { normalizeTimes, formatTime } from '../src/timestamps';
 import { planRefresh } from '../src/refresh';
 import { listHTML, postHTML, nativeMock } from './fixtures.mjs';
 
@@ -77,13 +78,108 @@ async function open(b: Backend, cfg: any = {}) {
     },
   });
   if (cfg.native) { w.eval(nativeMock()); w.eval(bridge); }
+  const originalRows = [...w.document.querySelectorAll('.post-list > .post-list-item')];
   w.eval(bundle);
   await until(() => !!w.document.querySelector('#nf-refresh'), 'refresh navigation');
   await pause(45);
-  return { w, requests, legacy: () => legacy, mediaChange: async (dark: boolean) => { media.matches = dark; mediaCallbacks.forEach(f => f({ matches: dark })); await pause(20); }, broadcast: async () => { listeners.forEach(f => f({ type: 'flow:changed' })); await pause(30); } };
+  return { w, requests, originalRows, legacy: () => legacy, mediaChange: async (dark: boolean) => { media.matches = dark; mediaCallbacks.forEach(f => f({ matches: dark })); await pause(20); }, broadcast: async () => { listeners.forEach(f => f({ type: 'flow:changed' })); await pause(30); } };
 }
 async function close(w: Window) { await w.happyDOM.abort(); }
 const freshHome = () => listHTML().replaceAll('post-101-1', 'post-999-1').replace('给阅读留一点空间', '新帖999').replace('自己的小站，慢慢搭建', '更新标题102');
+test('0.1.19 cache restore retains matching native list rows and images', async () => {
+  const b = backend();
+  seed(b, [domParse(listHTML(), 'https://www.nodeseek.com/?sortBy=replyTime')]);
+  const h = await open(b);
+  try {
+    assert.strictEqual(h.w.document.querySelector('.post-list > .post-list-item'), h.originalRows[0]);
+    assert.strictEqual(h.w.document.querySelector('.post-list .avatar-normal'), h.originalRows[0].querySelector('img'));
+  } finally { await close(h.w); }
+});
+test('0.1.19 delayed login user card does not reload navigation', async () => {
+  const b = backend();
+  const h = await open(b, { html: listHTML().replace('class="user-head"', 'class="pending-user"') });
+  let reloads = 0;
+  try {
+    Object.defineProperty(h.w.location, 'reload', { value: () => { reloads++; } });
+    h.w.document.querySelector('.pending-user')!.className = 'user-head';
+    await until(() => pointer(b), 'logged-in cache scope ready');
+    assert.equal(reloads, 0);
+    assert.deepEqual(h.requests, []);
+  } finally { await close(h.w); }
+});
+test('0.1.19 restored home reuses navigation document without duplicate fetch', async () => {
+  const b = backend();
+  seed(b, [1, 2].map(n => domParse(listHTML(n), 'https://www.nodeseek.com/' + (n === 1 ? '?sortBy=replyTime' : 'page-2?sortBy=replyTime'))));
+  const h = await open(b, { html: freshHome() });
+  try {
+    assert.deepEqual(ids(h.w), ['101', '102', '103', '104']);
+    await pause(3200);
+    assert.deepEqual(h.requests, []);
+    h.w.document.dispatchEvent(new h.w.Event('visibilitychange'));
+    await pause(40);
+    assert.deepEqual(h.requests, []);
+    await refresh(h.w);
+    await until(() => ids(h.w).includes('999'));
+    assert.deepEqual(h.requests, [], 'apply the navigation response without refetch');
+    assert.deepEqual(ids(h.w), ['999', '102', '101', '103', '104']);
+  } finally { await close(h.w); }
+});
+test('0.1.19 restored comments do not refetch first or tail on navigation', async () => {
+  const b = backend();
+  seed(b, [1, 2].map(n => domParse(postHTML(n), 'https://www.nodeseek.com/post-101-' + n)));
+  const h = await open(b, { url: 'https://www.nodeseek.com/post-101-1', html: postHTML() });
+  try {
+    await pause(3200);
+    assert.deepEqual(h.requests, []);
+    assert.ok(h.w.document.querySelector('[data-comment-id="1004"]'));
+  } finally { await close(h.w); }
+});
+test('0.1.19 absolute times survive cache rendering; body text stays unchanged', async () => {
+  const w = new Window();
+  try {
+    Object.assign(globalThis, { document: w.document, DOMParser: w.DOMParser });
+    w.document.body.innerHTML = '<time datetime="2026-10-01T06:00:00Z">1s ago</time><div class="post-content"><time datetime="2020-01-01T00:00:00Z">正文原文</time></div>';
+    normalizeTimes(w.document as any, Date.now());
+    const label = formatTime(Date.parse('2026-10-01T06:00:00Z'));
+    assert.equal(w.document.querySelector('time')!.textContent, label);
+    normalizeTimes(w.document as any, Date.now() + 86400000);
+    assert.equal(w.document.querySelector('time')!.textContent, label);
+    assert.equal(w.document.querySelector('.post-content time')!.textContent, '正文原文');
+    const parsed = domParse(listHTML(), 'https://www.nodeseek.com/');
+    const rendered = renderItem(parsed.items[0]).querySelector('time')!;
+    assert.equal(rendered.textContent, label.slice(0, 10) + '\n' + label.slice(11, 16));
+    assert.ok(rendered.getAttribute('title')!.includes(label), 'tooltip preserves full seconds');
+  } finally { await close(w); }
+});
+test('0.1.19 legacy relative times use original cache timestamp and keep estimate label', async () => {
+  const p = domParse(listHTML(), 'https://www.nodeseek.com/');
+  p.renderer = 3;
+  p.at = Date.parse('2026-10-01T06:00:00Z');
+  p.items = p.items.map(i => ({ ...i, capturedAt: undefined, shell: '<div class="post-info"><span class="info-last-comment-time">5min ago</span></div>' }));
+  const updated = upgradePage(p)!;
+  const full = formatTime(p.at - 300000);
+  const expected = '约 ' + full.slice(0, 10) + '\n' + full.slice(11, 16);
+  assert.equal(renderItem(updated.items[0]).querySelector('.info-last-comment-time')!.textContent, expected);
+  assert.equal(renderItem(updated.items[0]).querySelector('.info-last-comment-time')!.getAttribute('data-nf-time-estimated'), 'true');
+  const w = new Window();
+  try {
+    w.document.body.innerHTML = updated.items[0].shell!;
+    normalizeTimes(w.document as any, p.at + 86400000);
+    assert.equal(w.document.querySelector('.info-last-comment-time')!.textContent, expected);
+  } finally { await close(w); }
+});
+test('0.1.20 comment time stays compact with exact seconds retained after cache restore', () => {
+  const page = domParse(postHTML(), 'https://www.nodeseek.com/post-101-1');
+  const node = renderItem(page.items[0]);
+  const time = node.querySelector('time')!;
+  const full = formatTime(Date.parse('2026-10-01T06:00:00Z'));
+  assert.equal(time.textContent, full.slice(0, 16));
+  assert.ok(time.getAttribute('title')!.includes(full));
+  assert.equal(time.getAttribute('datetime'), '2026-10-01T06:00:00.000Z');
+  assert.ok(!time.classList.contains('nf-time-stacked'));
+  normalizeTimes(node, Date.now() + 86400000);
+  assert.equal(time.textContent, full.slice(0, 16));
+});
 async function refresh(w: Window) { (w.document.querySelector('#nf-refresh') as any).click(); await pause(40); }
 
 test('ui plan prepends new and edited list IDs while retaining old pages/order without mutation', () => {
